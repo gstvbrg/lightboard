@@ -5,16 +5,10 @@
 
 using namespace rgb_matrix;
 
-Cyclic::Cyclic(Canvas *m, vector<int> b, vector<int> d, vector< array<int,3> > s)
-		: ThreadedCanvasManipulator(m), _delay_ms(500), births(b), deaths(d), states(s)
+Cyclic::Cyclic(Canvas *m, const int t, vector< array<int,3> > s, int w, int h)
+		: ThreadedCanvasManipulator(m), _delay_ms(500), _threshold(t), states(s),
+		_width(w), _height(h), grid(vector<vector<Cell>> (h, vector<Cell>(w, Cell())))
 	{	
-		// Get Canvas Dimensions
-		_width = canvas()->width();
-		_height = canvas()->height();
-
-		// Define Grid Shape
-		grid = vector<vector<Cell>> (_height, vector<Cell>(_width, Cell()));
-
 		// Initalize Grid
 		Cyclic::initGrid();
 	}
@@ -27,7 +21,6 @@ void Cyclic::initGrid() {
 	for (int i = 0; i < _height; i++) {
 		for (int j = 0; j < _width; j++) {
 			grid[i][j].setInitState(states_dist(randNum));
-			//cout << "grid[" << i << "][" << j << "]: prevState" << grid[i][j].getPreviousState() << " CurrState " << grid[i][j].getState() << endl;
 		}
 	}
 }
@@ -36,29 +29,43 @@ void Cyclic::Run(){
 	return;
 }
 
-int Cyclic::numLivingNeighbors(int x, int y) {
-	int num=0;
-      // Edges are connected (torus)
-	num += grid[(x-1+_width)%_width][(y-1+_height)%_height].getState();
-	num += grid[(x-1+_width)%_width][y                    ].getState();
-	num += grid[(x-1+_width)%_width][(y+1        )%_height].getState();
-	num += grid[(x+1       )%_width][(y-1+_height)%_height].getState();
-	num += grid[(x+1       )%_width][y                    ].getState();
-	num += grid[(x+1       )%_width][(y+1        )%_height].getState();
-	num += grid[x                  ][(y-1+_height)%_height].getState();
-	num += grid[x                  ][(y+1        )%_height].getState();
-	return num;
+int Cyclic::numActiveNeighbors(int x, int y) {
+	int count = 0;
+	int currState = grid[x][y].getPreviousState();
+
+	int h = _height;
+	int w = _width;
+
+	// Torus //
+	// N
+	if (currState == 1 + grid[((((x%h)-1) % h + h) % h)][y].getPreviousState()){count++;}
+	// NE
+	if (currState == 1 + grid[((((x%h)-1) % h + h) % h)][((y+1) % w)].getPreviousState()){count++;}
+	// E
+	if (currState == 1 + grid[x][((y+1)%w)].getPreviousState()){count++;}
+	// SE
+	if (currState == 1 + grid[((((x%h)+1)%h))][((y+1) % w)].getPreviousState()){count++;}
+	// S
+	if (currState == 1 + grid[(((x%h)+1)%h)][y].getPreviousState()){count++;}
+	// SW
+	if (currState == 1 + grid[((((x%h)+1)%h))][((y-1) % w)].getPreviousState()){count++;}
+	// W
+	if (currState == 1 + grid[x][((y-1) % w)].getPreviousState()){count++;}
+	// NW
+	if (currState == 1 + grid[((((x%h)-1) % h + h) % h)][((y-1) % w)].getPreviousState()){count++;}
+
+	return count;
 }
 
 void Cyclic::update() {
-	// for (int i = 0; i < _height; i++) {
-	// 	for (int j = 0; j < _width; j++) {
-	// 		cout << "Set at start: " << grid[i][j].getState();
-	// 		int numLiving = Cyclic::numLivingNeighbors(i,j);
-	// 		if ( any_of(births.begin(), births.end(), [&numLiving](int i){ return i == numLiving;} ) ){
-	// 			grid[i][j].setState( (grid[i][j].getState() + 1) % states.size());
-	// 		} else if ( any_of(deaths.begin(), deaths.end(), [&numLiving](int i){ return i == numLiving;} )
-	// 	}
-	// }
-	return;
+	for (int i = 0; i < _height; i++) {
+		for (int j = 0; j < _width; j++) {
+			int numActive = Cyclic::numActiveNeighbors(i,j);
+			if ( numActive >= _threshold) {
+				grid[i][j].setState( (grid[i][j].getPreviousState() + 1) % states.size());
+			} else {
+				grid[i][j].setState( grid[i][j].getState());
+			}
+		}
+	}
 }

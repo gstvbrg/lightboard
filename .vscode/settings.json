@@ -19,6 +19,12 @@
 		"string": "cpp",
 		"array": "cpp",
 		"map": "cpp",
-		"string_view": "cpp"
+		"string_view": "cpp",
+		"random": "cpp",
+		"ratio": "cpp",
+		"ostream": "cpp",
+		"__bit_reference": "cpp",
+		"bitset": "cpp",
+		"chrono": "cpp"
 	}
 }

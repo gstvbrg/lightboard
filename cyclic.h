@@ -10,18 +10,17 @@ using namespace std;
 
 class Cyclic : public ThreadedCanvasManipulator  {
 	public:
-		Cyclic(Canvas *m, vector<int> b, vector<int> d, vector< array<int,3> > s);
+		Cyclic(Canvas *m, const int t, vector< array<int,3> > s, const int w, const int h);
 		~Cyclic();
 		void initGrid();
 		void Run();
-		int numLivingNeighbors(int x, int y);
+		int numActiveNeighbors(int x, int y);
 		void update();
 	public:
 		vector< vector<Cell> > grid;
 		vector< array<int, 3> > states;
-		vector<int> births;
-		vector<int> deaths;
+		const int _threshold;
 		int _delay_ms;
-		int _width;
-  		int _height;
+		const int _width;
+  		const int _height;
 };
