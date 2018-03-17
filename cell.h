@@ -1,4 +1,5 @@
 #include <vector>
+#include <iostream>
 #include <random>
 
 using namespace std;
@@ -12,15 +13,11 @@ class Cell {
 		int getX() {return x;}
 		void setY(int y_p) { y = y_p;}
 		int getY() {return y;}
-		void setState(int nextState) {
-			previousStates.emplace_back(state);
-			state = nextState;
-		}
-		void setInitState(int state_p) {
-			previousStates.emplace_back(state_p);
-			state = state_p;
+		void setState(int nextState) { 
+			state = nextState; 
 		}
 		int getState() {return state;}
+		int setPreviousState(int s) {previousStates.push_back(s);}
 		int getPreviousState() {return previousStates.back();}
 	public:
 		int x;
