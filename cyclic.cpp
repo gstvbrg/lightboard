@@ -3,22 +3,34 @@
 #include <iostream>
 #include <random>
 #include <signal.h>
+#include <unistd.h>
+#include <stdio.h>
 
 using namespace rgb_matrix;
 
-Cyclic::Cyclic(Canvas *m, const int t, array< array<int,3>, 4> s, int w, int h)
-		: ThreadedCanvasManipulator(m), _delay_ms(500), _threshold(t), _states(s), _numStates(3), 
-		_width(w), _height(h), grid(vector<vector<Cell>> (h, vector<Cell>(w, Cell())))
-	{	
-		// Initalize Grid
-		Cyclic::initGrid();
-		
-	}
+//grid(vector<vector<Cell>> (h, vector<Cell>(w, Cell())))
 
-Cyclic::~Cyclic(){}
+Cyclic::Cyclic(RGBMatrix *m, const int r, const int t, array< array<int,3>, 3> s, int w, int h)
+	: ThreadedCanvasManipulator(m), _delay_ms(750), _range(r), _threshold(t), _states(s),
+	_width(w), _height(h) {	
+
+	// Initalize Grid
+	_numStates = _states.size();
+	_canvas = m;
+    _offscreen = m->CreateFrameCanvas();
+	Cyclic::initGrid();
+}
+
+Cyclic::~Cyclic() {
+	for(int row = 0; row < _height; row++){
+		for(int col = 0; col < _width; col++){
+			delete &grid[row][col];
+		}
+	}
+}
 
 void Cyclic::initGrid() {
-	uniform_int_distribution<int> states_dist(0,2);
+	uniform_int_distribution<int> states_dist(0,_numStates-1);
   	default_random_engine randNum;
 	for (int row = 0; row < _height; row++) {
 		for (int col = 0; col < _width; col++) {
@@ -28,7 +40,11 @@ void Cyclic::initGrid() {
 }
 
 void Cyclic::Run(){
-	cout << "run!" << endl;
+	Cyclic::drawState();
+	Cyclic::_canvas->SwapOnVSync(_offscreen);
+	Cyclic::archiveState();
+	Cyclic::updateState();
+	usleep(Cyclic::_delay_ms * 5);
 }
 
 int Cyclic::numActiveNeighbors(int x, int y) {
@@ -65,8 +81,47 @@ int Cyclic::numActiveNeighbors(int x, int y) {
 	// cout << "NW\n" << ((((x%h)-1) % h + h) % h) << "," << ((((x%w)-1) % w + w) % w) << endl;
 	if (cell == (grid[((((x%h)-1) % h + h) % h)][((((y%w)-1) % w + w) % w)].getPreviousState())){count++;}
 	// cout<<"sorted out"<<endl;
-	//cout << "count : " << count << "\n";
+	return count;
+}
 
+int Cyclic::numActiveNeighbors(int x, int y, int range) {
+
+	int h = _height;
+	int w = _width;
+	
+	int cell = (((grid[x][y].getPreviousState()) + 1) % _numStates);
+	int count = 0;
+
+	//cout << "Cell State    : " << ((grid[x][y].getPreviousState() + 1) % _numStates) << endl;
+	//cout << "Cell State + 1: " << cell << endl;
+	for (int r = 1; r < range + 1; r++) { 
+		// Torus
+		// N
+		// cout << r << "N of " << x << "," << y << "\n" << ((((x%h)-r) % h + h) % h) << "," << y << endl;
+		if (cell == (grid[((((x%h)-r) % h + h) % h)][y].getPreviousState())){count++;}
+		// NE
+		// cout << r << "NE of " << x << "," << y << "\n" << ((((x%h)-r) % h + h) % h) << "," << ((y+r) % w) << endl;
+		if (cell == (grid[((((x%h)-r) % h + h) % h)][((y+r) % w)].getPreviousState())){count++;}
+		// E
+		// cout << r << "E of " << x << "," << y << "\n" << x << "," << ((y+r)%w) << endl;
+		if (cell == (grid[x][((y+r)%w)].getPreviousState())){count++;}
+		// SE
+		// cout << r << "SE of " << x << "," << y << "\n" << ((((x%h)+r)%h)) << "," << ((y+r) % w) << endl;
+		if (cell == (grid[((((x%h)+r)%h))][((y+r) % w)].getPreviousState())){count++;}
+		// S
+		// cout << r << "S of " << x << "," << y << "\n" << (((x%h)+r)%h) << "," << y << endl;
+		if (cell == (grid[(((x%h)+r)%h)][y].getPreviousState())){count++;}
+		// SW
+		// cout << r << "SW of " << x << "," << y << "\n" << ((((x%h)+r)%h)) << "," << ((((x%w)-r) % w + w) % w) << endl;
+		if (cell == (grid[((((x%h)+r)%h))][((((y%w)-r) % w + w) % w)].getPreviousState())){count++;}
+		// W
+		// cout << r << "W of " << x << "," << y << "\n" << x << "," << ((((x%w)-r) % w + w) % w) << endl;
+		if (cell == (grid[x][((((y%w)-r) % w + w) % w)].getPreviousState())){count++;}
+		// NW
+		//cout << r << "NW of " << x << "," << y << "\n" << ((((x%h)-r) % h + h) % h) << "," << ((((x%w)-r) % w + w) % w) << endl;
+		if (cell == (grid[((((x%h)-r) % h + h) % h)][((((y%w)-r) % w + w) % w)].getPreviousState())){count++;}
+	}
+	//cout << "count " << count << endl;
 	return count;
 }
 
@@ -77,12 +132,13 @@ void Cyclic::updateState() {
 
 
 			// Active Numbers of Previous State
-			numActive = Cyclic::numActiveNeighbors(row,col);
+			numActive = Cyclic::numActiveNeighbors(row,col,_range);
+			//cout << "numActive: " << numActive << endl;
 
 			if ( numActive >= _threshold) {
 				// If neighborhood occurence of next state(color) of cell is 
-				// great or equal to threshold, advance cell state by 1
-				grid[row][col].setState( (grid[row][col].getState() + 1) % _numStates);
+				// greater or equal to threshold, advance cell state by 1
+				grid[row][col].setState((grid[row][col].getState() + 1) % _numStates);
 
 			} else {
 				// If neightborhood occurence of next state is not greater than threshold
@@ -102,12 +158,11 @@ void Cyclic::archiveState(){
 	}
 }
 
-
-void Cyclic::drawStateTo(Canvas *m) {
+void Cyclic::drawState() {
 	for(int row = 0; row < _height; row++){
 		for(int col = 0; col < _width; col++){
 			int s = grid[row][col].getState();
-			m->SetPixel(col,row, _states[s][0], _states[s][1], _states[s][2]);
+			_offscreen->SetPixel(col,row, _states[s][0], _states[s][1], _states[s][2]);
 		}
 	}
 }
